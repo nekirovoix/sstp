@@ -35,3 +35,8 @@
 - Read its profile name, server address, and IPv4 endpoint before applying firewall policy.
 - Refuse to enable when no SSTP profile is connected.
 - Preserve compatibility with state files created by version 1.0.
+
+## Connector 1.1.0
+- Replace `rasdial.exe` with direct Windows RAS API calls.
+- Retrieve the saved credential handle through `RasGetCredentials` and connect with `RasDial`.
+- Avoid duplicate connection references when the `rus` profile is already connected.
