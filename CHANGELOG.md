@@ -24,3 +24,8 @@
 
 ## 1.1.0–1.5.0
 - Add generated VPN passwords, recovery of partial installations, localhost management fallback, firewall restrictions, certificate renewal, and SSTP certificate diagnostics.
+
+## Utilities 1.0.0
+- Add `Connect-rus.exe` source for one-shot connection of the saved `rus` profile.
+- Add persistent firewall-based SSTP Kill Switch manager with restore support.
+- Add equivalent PowerShell scripts for connection and Kill Switch management.
