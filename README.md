@@ -56,3 +56,7 @@ dotnet publish src/SstpDeployManager/SstpDeployManager.csproj `
 ## License
 
 No license has been selected yet. Add a license before accepting external contributions or redistribution.
+
+## Keyboard quick connect
+
+`tools/SstpQuickConnect` contains a separate, non-resident helper. Running it connects the saved VPN profile and exits. On first run it creates a Start Menu shortcut with the `Ctrl+Alt+V` hotkey. It does not use Startup or Task Scheduler and stores no password.
