@@ -29,3 +29,9 @@
 - Add `Connect-rus.exe` source for one-shot connection of the saved `rus` profile.
 - Add persistent firewall-based SSTP Kill Switch manager with restore support.
 - Add equivalent PowerShell scripts for connection and Kill Switch management.
+
+## Kill Switch 1.1.0
+- Detect the currently connected SSTP profile dynamically.
+- Read its profile name, server address, and IPv4 endpoint before applying firewall policy.
+- Refuse to enable when no SSTP profile is connected.
+- Preserve compatibility with state files created by version 1.0.

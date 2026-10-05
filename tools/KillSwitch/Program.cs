@@ -1,6 +1,4 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 
 namespace SstpKillSwitch;
@@ -17,7 +15,6 @@ internal static class Program
 
 internal sealed class KillSwitchForm : Form
 {
-    const string Domain = "t.navar-abyari.ir";
     readonly Label status = new() { Dock = DockStyle.Top, Height = 72, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 10, FontStyle.Bold) };
     readonly Button enable = new() { Text = "فعال‌کردن Kill Switch", Width = 190, Height = 44 };
     readonly Button disable = new() { Text = "بازگردانی اینترنت و فایروال", Width = 210, Height = 44 };
@@ -46,21 +43,33 @@ internal sealed class KillSwitchForm : Form
         SetBusy(true, "در حال تنظیم Windows Firewall...");
         try
         {
-            string ip = (await Dns.GetHostAddressesAsync(Domain)).First(x => x.AddressFamily == AddressFamily.InterNetwork).ToString();
             string script = $$"""
 $ErrorActionPreference='Stop'
 $group='SSTP Kill Switch'
 $state='{{Ps(StatePath)}}'
+$vpns=@()
+$vpns += @(Get-VpnConnection -ErrorAction SilentlyContinue)
+$vpns += @(Get-VpnConnection -AllUserConnection -ErrorAction SilentlyContinue)
+$vpn=$vpns | Where-Object { $_.ConnectionStatus -eq 'Connected' -and $_.TunnelType -eq 'Sstp' } | Select-Object -First 1
+if(-not $vpn){ throw 'No connected SSTP profile was found. Connect the desired SSTP profile first.' }
+$server=$vpn.ServerAddress
+$serverIp=[System.Net.Dns]::GetHostAddresses($server) | Where-Object { $_.AddressFamily -eq 'InterNetwork' } | Select-Object -First 1
+if(-not $serverIp){ throw \"Could not resolve SSTP server '$server' to IPv4.\" }
+$serverIp=$serverIp.ToString()
 $dir=Split-Path $state
 New-Item -ItemType Directory -Path $dir -Force | Out-Null
-if(-not (Test-Path $state)){
+if(Test-Path $state){
+  $oldState=Get-Content $state -Raw | ConvertFrom-Json
+  if($oldState.FirewallProfiles){ $saved=$oldState.FirewallProfiles } else { $saved=$oldState }
+}else{
   $saved=@{}
   Get-NetFirewallProfile | ForEach-Object { $saved[$_.Name]=$_.DefaultOutboundAction.ToString() }
-  $saved | ConvertTo-Json | Set-Content -Encoding UTF8 $state
 }
+$newState=[ordered]@{ FirewallProfiles=$saved; VpnName=$vpn.Name; ServerAddress=$server; ServerIp=$serverIp }
+$newState | ConvertTo-Json -Depth 5 | Set-Content -Encoding UTF8 $state
 Get-NetFirewallRule -Group $group -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 New-NetFirewallRule -DisplayName 'SSTP Allow VPN tunnel traffic' -Group $group -Direction Outbound -Action Allow -InterfaceType RemoteAccess -Profile Any | Out-Null
-New-NetFirewallRule -DisplayName 'SSTP Allow server TCP 443' -Group $group -Direction Outbound -Action Allow -Protocol TCP -RemotePort 443 -RemoteAddress '{{ip}}' -Profile Any | Out-Null
+New-NetFirewallRule -DisplayName 'SSTP Allow server TCP 443' -Group $group -Direction Outbound -Action Allow -Protocol TCP -RemotePort 443 -RemoteAddress $serverIp -Profile Any | Out-Null
 $dns=Get-DnsClientServerAddress | ForEach-Object { $_.ServerAddresses } | Where-Object { $_ -and $_ -notmatch '^127\.' -and $_ -ne '::1' } | Sort-Object -Unique
 if($dns){
   New-NetFirewallRule -DisplayName 'SSTP Allow DNS UDP' -Group $group -Direction Outbound -Action Allow -Protocol UDP -RemotePort 53 -RemoteAddress $dns -Profile Any | Out-Null
@@ -69,10 +78,11 @@ if($dns){
 New-NetFirewallRule -DisplayName 'SSTP Allow DHCPv4' -Group $group -Direction Outbound -Action Allow -Protocol UDP -LocalPort 68 -RemotePort 67 -Profile Any | Out-Null
 New-NetFirewallRule -DisplayName 'SSTP Allow DHCPv6' -Group $group -Direction Outbound -Action Allow -Protocol UDP -LocalPort 546 -RemotePort 547 -Profile Any | Out-Null
 Set-NetFirewallProfile -Name Domain,Private,Public -DefaultOutboundAction Block
+Write-Output \"Kill Switch enabled for SSTP profile '$($vpn.Name)' at ${serverIp}:443.\"
 """;
             var result = await RunPowerShell(script);
             if (result.Code != 0) throw new Exception(result.Text);
-            status.Text = $"Kill Switch فعال شد؛ فقط SSTP به {ip}:443 و ترافیک VPN مجاز است.";
+            status.Text = result.Text;
             status.ForeColor = Color.FromArgb(35, 125, 75);
         }
         catch (Exception ex)
@@ -95,7 +105,8 @@ $state='{{Ps(StatePath)}}'
 Get-NetFirewallRule -Group $group -ErrorAction SilentlyContinue | Remove-NetFirewallRule
 if(Test-Path $state){
   $saved=Get-Content $state -Raw | ConvertFrom-Json
-  $saved.PSObject.Properties | ForEach-Object { Set-NetFirewallProfile -Name $_.Name -DefaultOutboundAction $_.Value }
+  if($saved.FirewallProfiles){ $profiles=$saved.FirewallProfiles } else { $profiles=$saved }
+  $profiles.PSObject.Properties | ForEach-Object { Set-NetFirewallProfile -Name $_.Name -DefaultOutboundAction $_.Value }
   Remove-Item $state -Force
 }else{
   Set-NetFirewallProfile -Name Domain,Private,Public -DefaultOutboundAction Allow
