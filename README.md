@@ -60,3 +60,7 @@ No license has been selected yet. Add a license before accepting external contri
 ## Keyboard quick connect
 
 `tools/SstpQuickConnect` contains a separate, non-resident helper. Running it connects the saved VPN profile and exits. On first run it creates a Start Menu shortcut with the `Ctrl+Alt+V` hotkey. It does not use Startup or Task Scheduler and stores no password.
+
+## SSTP launcher and kill-switch session archive
+
+[Persian session documentation and source files](docs/session-2026-10-05/README-fa.md) include the tested rasphone launcher, firewall helper, historical versions, recovery commands, and reported test evidence. The firewall helper is experimental and does **not** guarantee leak-free operation; review its security limitations before use. Existing application sources are unchanged.
